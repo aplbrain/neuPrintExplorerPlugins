@@ -12,7 +12,11 @@ import Radio from '@material-ui/core/Radio';
 import RadioGroup from '@material-ui/core/RadioGroup';
 import TextField from '@material-ui/core/TextField';
 
-import NeuronFilter from './shared/NeuronFilter';
+import NeuronFilterNew, {
+  convertToCypher,
+  thresholdCypher,
+  statusCypher
+} from './shared/NeuronFilterNew';
 import { getBodyIdForTable } from './shared/pluginhelpers';
 
 const styles = theme => ({
@@ -90,9 +94,28 @@ class CommonConnectivity extends React.Component {
     return columns.map(column => ({ name: column, status: true }));
   }
 
-  static fetchParameters() {
+  static fetchParameters(params) {
+    const filters = params.filters ? Object.entries(params.filters).map(([filterName, value]) => {
+      return convertToCypher(filterName, Array.isArray(value) ? value : [value])
+    }) : [];
+    const conditions = [
+      thresholdCypher('pre', params.pre),
+      thresholdCypher('post', params.post),
+      statusCypher(params.statuses),
+      ...filters
+    ].filter(condition => condition !== '').join(' AND ');
+
+    const hasConditions = conditions.length > 0 ? 'AND' : '';
+
+    const neuronIds = params.neuron_ids ? params.neuron_ids.join(', ') : '';
+
+    const matchCypher = params.find_inputs ? '(k:Neuron)<-[r:ConnectsTo]-(neuron)' : '(k:Neuron)-[r:ConnectsTo]->(neuron)'
+
+    const cypherQuery = `WITH [${neuronIds}] AS queriedNeurons MATCH ${matchCypher} WHERE (k.bodyId IN queriedNeurons ${hasConditions} ${conditions}) WITH k, neuron, r, toString(k.bodyId)+"_weight" AS dynamicWeight RETURN collect(apoc.map.fromValues(["${params.find_inputs ? "input" : "output"}", neuron.bodyId, "name", neuron.instance, "type", neuron.type, dynamicWeight, r.weight])) AS map`;
+
     return {
-      queryString: '/npexplorer/commonconnectivity'
+      cypherQuery,
+      queryString: '/custom/custom?np_explorer=commmon_connectivity'
     };
   }
 
@@ -183,7 +206,7 @@ class CommonConnectivity extends React.Component {
     const data = [];
     Object.keys(groupedByInputOrOutputId).forEach(inputOrOutput => {
       const singleRow = [
-        getBodyIdForTable(query.ds, parseInt(inputOrOutput, 10), true, actions),
+        getBodyIdForTable(query.ds, parseInt(inputOrOutput, 10), actions),
         groupedByInputOrOutputId[inputOrOutput].name,
         groupedByInputOrOutputId[inputOrOutput].type
       ];
@@ -211,9 +234,10 @@ class CommonConnectivity extends React.Component {
     super(props);
     this.state = {
       limitNeurons: true,
-      statusFilters: [],
-      preThreshold: 0,
-      postThreshold: 0,
+      status: [],
+      pre: 0,
+      post: 0,
+      filters: {},
       bodyIds: '',
       typeValue: 'input'
     };
@@ -221,12 +245,12 @@ class CommonConnectivity extends React.Component {
 
   processRequest = () => {
     const { dataSet, submit, actions } = this.props;
-    const { limitNeurons, preThreshold, postThreshold, statusFilters } = this.state;
+    const { limitNeurons, pre, post, status, filters } = this.state;
     const { bodyIds, typeValue } = this.state;
 
     const parameters = {
       dataset: dataSet,
-      statuses: statusFilters,
+      statuses: status,
       find_inputs: typeValue !== 'output',
       neuron_ids: bodyIds === '' ? [] : bodyIds.split(',').map(Number),
       all_segments: !limitNeurons
@@ -241,12 +265,21 @@ class CommonConnectivity extends React.Component {
       return;
     }
 
-    if (preThreshold > 0) {
-      parameters.pre_threshold = preThreshold;
+    if (parameters.neuron_ids.length < 1) {
+      actions.metaInfoError("You must enter at least one Neuron ID.");
+      return;
     }
 
-    if (postThreshold > 0) {
-      parameters.post_threshold = postThreshold;
+    if (pre > 0) {
+      parameters.pre = pre;
+    }
+
+    if (post > 0) {
+      parameters.post = post;
+    }
+
+    if (Object.keys(filters).length > 0) {
+      parameters.filters = filters;
     }
 
     const query = {
@@ -261,9 +294,15 @@ class CommonConnectivity extends React.Component {
 
   loadNeuronFilters = params => {
     this.setState({
-      statusFilters: params.statusFilters,
-      preThreshold: parseInt(params.preThreshold, 10),
-      postThreshold: parseInt(params.postThreshold, 10)
+      status: params.status,
+      pre: parseInt(params.pre, 10),
+      post: parseInt(params.post, 10)
+    });
+  };
+
+  loadNeuronFiltersNew = filters => {
+    this.setState({
+      filters
     });
   };
 
@@ -314,8 +353,8 @@ class CommonConnectivity extends React.Component {
           <FormControlLabel value="input" control={<Radio color="primary" />} label="Inputs" />
           <FormControlLabel value="output" control={<Radio color="primary" />} label="Outputs" />
         </RadioGroup>
-        <NeuronFilter
-          callback={this.loadNeuronFilters}
+        <NeuronFilterNew
+          callback={this.loadNeuronFiltersNew}
           datasetstr={dataSet}
           actions={actions}
           neoServer={neoServerSettings.get('neoServer')}

@@ -1,6 +1,6 @@
 {
   "name": "@neuprint/queries",
-  "version": "10.1.1",
+  "version": "11.7.6",
   "description": "Query plugins used by the neuPrintExplorer website",
   "main": "build/index.js",
   "scripts": {
@@ -24,26 +24,28 @@
   },
   "homepage": "https://github.com/connectome-neuprint/neuPrintExplorerPlugins#readme",
   "peerDependencies": {
-    "@material-ui/core": "^4.9.4",
-    "@material-ui/icons": "^4.9.1",
+    "@material-ui/core": "^4.12.3",
+    "@material-ui/icons": "^4.11.2",
+    "core-js": "^3.6.5",
     "immutable": "^4.0.0-rc.12",
     "prop-types": "^15.6.2",
-    "react": "^16.11.0",
-    "react-dom": "^16.11.0",
+    "react": ">=16.11.0 || ^17.0.0",
+    "react-dom": ">=16.11.0 || ^17.0.0",
     "react-redux": "^7.1.0",
     "react-router": "^5.0.0",
-    "react-select": "^2.1.0"
+    "react-select": "^3.1.0"
   },
   "dependencies": {
     "@neuprint/colorbox": "file:../colorbox",
     "@neuprint/miniroibargraph": "file:../miniroibargraph",
     "@neuprint/miniroiheatmap": "file:../miniroiheatmap",
     "@neuprint/support": "file:../support",
+    "@vimo-public/vimo-sketches": "^0.2.6",
     "codemirror": "^5.48.4",
     "colormap": "^2.3.0",
     "date-fns": "^1.30.1",
     "deepmerge": "^2.2.1",
-    "mathjs": "^5.2.3",
+    "mathjs": "^10.1.1",
     "randomcolor": "^0.5.3",
     "react-codemirror2": "^6.0.0"
   },

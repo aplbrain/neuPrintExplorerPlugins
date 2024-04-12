@@ -1,7 +1,7 @@
 import React from 'react';
 import * as math from 'mathjs';
 import NeuronRoiHeatMap, { ColorLegend } from '@neuprint/miniroiheatmap';
-import NeuronRoiBarGraph, { MiniMitoBarGraph } from '@neuprint/miniroibargraph';
+import NeuronRoiBarGraph, { MiniMitoBarGraph, MiniMitoByTypeBarGraph } from '@neuprint/miniroibargraph';
 import { SimpleConnections } from '../SimpleConnections';
 import BodyId from '../visualization/BodyId';
 
@@ -154,17 +154,28 @@ export function generateMitoBarGraph(roiInfoObject, mitoTotal) {
   return barGraph;
 }
 
+export function generateMitoByTypeBarGraph(roiInfoObject, mitoTotal) {
+
+   const barGraph = (
+    <MiniMitoByTypeBarGraph roiInfoObject={roiInfoObject} mitoTotal={mitoTotal} />
+  );
+  return barGraph;
+}
+
+
 /**
  * Returns body id in preferred format for table view. Incorporates a view skeleton link.
  *
  * @export
  * @param {string} dataset
  * @param {number} bodyId
- * @param {boolean} hasSkeleton
  * @param {Object} actions
+ * @param {Object} options
+ * @param {string} options.color
+ * @param {boolean} options.skeleton
  * @returns {Object}
  */
-export function getBodyIdForTable(dataset, bodyId, hasSkeleton, actions) {
+export function getBodyIdForTable(dataset, bodyId, actions, options) {
   // don't create the link if the bodyid is not a number.
   if (bodyId === '-') {
     return bodyId;
@@ -172,7 +183,7 @@ export function getBodyIdForTable(dataset, bodyId, hasSkeleton, actions) {
 
   return {
     value: (
-      <BodyId dataSet={dataset} actions={actions}>
+      <BodyId dataSet={dataset} actions={actions} options={options}>
         {bodyId}
       </BodyId>
     ),
@@ -425,7 +436,6 @@ export function createSimpleConnectionsResult(
       roiList,
       connectionWeightHP
     ] = row;
-    const hasSkeleton = true;
     const roiInfoObject = roiInfoObjectJSON !== '' ? JSON.parse(roiInfoObjectJSON) : {};
 
     // make sure none is added to the rois list.
@@ -471,7 +481,7 @@ export function createSimpleConnectionsResult(
 
     const connectionPercentage = ((connectionWeight * 100) / totalConnections).toFixed(2);
 
-    converted[indexOf.bodyId] = getBodyIdForTable(dataset, bodyId, hasSkeleton, actions);
+    converted[indexOf.bodyId] = getBodyIdForTable(dataset, bodyId, actions);
     converted[indexOf.name] = name;
     converted[indexOf.type] = type;
     converted[indexOf.status] = status;
@@ -559,8 +569,8 @@ export function createSimpleConnectionsResult(
   columns[indexOf.status] = 'status';
   columns[indexOf.connectionWeight] = '#connections (% of total)';
   columns[indexOf.expectedRange] = 'expected range';
-  columns[indexOf.post] = '#post (inputs)';
-  columns[indexOf.pre] = '#pre (outputs)';
+  columns[indexOf.post] = 'inputs (#post)';
+  columns[indexOf.pre] = 'outputs (#pre)';
   columns[indexOf.size] = '#voxels';
   columns[indexOf.roiHeatMap] = (
     <div>

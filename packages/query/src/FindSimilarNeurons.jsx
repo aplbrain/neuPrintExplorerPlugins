@@ -10,6 +10,10 @@ import Button from '@material-ui/core/Button';
 import FormControl from '@material-ui/core/FormControl';
 import TextField from '@material-ui/core/TextField';
 import Typography from '@material-ui/core/Typography';
+import FormControlLabel from '@material-ui/core/FormControlLabel';
+import FormLabel from '@material-ui/core/FormLabel';
+import Radio from '@material-ui/core/Radio';
+import RadioGroup from '@material-ui/core/RadioGroup';
 
 import { ColorLegend } from '@neuprint/miniroiheatmap';
 import {
@@ -18,16 +22,20 @@ import {
   generateRoiHeatMapAndBarGraph,
   getBodyIdForTable
 } from './shared/pluginhelpers';
+import NeuronStatusFilter from "./shared/NeuronStatusFilter";
 
 const styles = theme => ({
+  formControl: {
+    marginBottom: theme.spacing(3)
+  },
+  radioGroup: {
+    marginBottom: theme.spacing(3)
+  },
   textField: {
     margin: 4,
     display: 'block',
     marginLeft: 'auto',
     marginRight: 'auto'
-  },
-  formControl: {
-    margin: theme.spacing(1)
   },
   select: {
     fontFamily: theme.typography.fontFamily,
@@ -88,9 +96,75 @@ function computeDistance(vec1, vec2) {
   return score;
 }
 
+function processNblastResults(query, apiResponse, actions, submit) {
+
+  const { pm: parameters } = query;
+  const columns = [
+    'bodyId',
+    'instance',
+    'type',
+    'nblast score',
+    'pre',
+    'post',
+    'notes',
+    'brain region breakdown',
+    'brain region heatmap'
+  ];
+
+  const data = apiResponse.data.map(row => {
+    const bodyId = row[0];
+    const roiInfoObject = row[4];
+    const totalPre = row[6];
+    const totalPost = row[7];
+    const { heatMap, barGraph } = generateRoiHeatMapAndBarGraph(
+        roiInfoObject,
+        parameters.superROIs,
+        totalPre,
+        totalPost
+      );
+    const postQuery = createSimpleConnectionQueryObject({
+      dataSet: parameters.dataset,
+      isPost: true,
+      queryId: bodyId
+    });
+    const preQuery = createSimpleConnectionQueryObject({
+      dataSet: parameters.dataset,
+      queryId: bodyId
+    });
+
+
+
+    return [
+      getBodyIdForTable(query.pm.dataset, bodyId, actions),
+      row[1], // instance
+      row[2], // type
+      row[3], // nblast score
+      {
+        value: totalPre,
+        action: () => submit(preQuery)
+      },
+      {
+        value: totalPost,
+        action: () => submit(postQuery)
+      },
+      row[5], // notes
+      barGraph,
+      heatMap
+    ];
+  });
+
+  const title = `Neurons similar to ${parameters.bodyId} (NBLAST)`;
+  return {
+    columns,
+    data,
+    debug: apiResponse.debug,
+    title
+  };
+
+}
+
 function processSimilarResults(query, apiResponse, actions, submit) {
   const { pm: parameters } = query;
-
 
   // create vector array (to be used for inputs and outputs)
   const roiOrder = {};
@@ -155,7 +229,7 @@ function processSimilarResults(query, apiResponse, actions, submit) {
     const roiInfoObject = row[6];
 
     const converted = [];
-    converted[indexOf.bodyId] = getBodyIdForTable(query.pm.dataset, bodyId, true, actions);
+    converted[indexOf.bodyId] = getBodyIdForTable(query.pm.dataset, bodyId, actions);
     converted[indexOf.instance] = instance;
     converted[indexOf.notes] = notes;
     converted[indexOf.type] = type;
@@ -229,7 +303,22 @@ export class FindSimilarNeurons extends React.Component {
     };
   }
 
-  static getColumnHeaders() {
+  static getColumnHeaders(query) {
+
+    if (query?.pm?.algorithm === "nblast") {
+      return [
+        { name: 'bodyId', status: true },
+        { name: 'instance', status: true },
+        { name: 'type', status: true },
+        { name: 'nblast score', status: true },
+        { name: 'pre', status: true },
+        { name: 'post', status: true },
+        { name: 'notes', status: false },
+        { name: 'brain region breakdown', status: true },
+        { name: 'brain region heatmap', status: true },
+      ];
+    }
+
     const columnIds = [];
 
     columnIds.push(
@@ -253,6 +342,9 @@ export class FindSimilarNeurons extends React.Component {
   }
 
   static processResults({ query, apiResponse, actions, submitFunc }) {
+    if (query?.pm?.algorithm === "nblast") {
+      return processNblastResults(query, apiResponse, actions, submitFunc);
+    }
     return processSimilarResults(query, apiResponse, actions, submitFunc);
   }
 
@@ -261,13 +353,32 @@ export class FindSimilarNeurons extends React.Component {
 
     this.state = {
       bodyId: '',
-      errorMessage: ''
+      status: ['Traced'],
+      errorMessage: '',
+      algorithm: 'synapse',
+      nBlastMatches: false
     };
   }
 
+  componentDidMount() {
+    this.updateNBlastStatus();
+  }
+
+  componentDidUpdate() {
+    this.updateNBlastStatus();
+  }
+
+
+  loadNeuronFilters = params => {
+    this.setState({
+      status: params.status,
+    });
+  };
+
+
   submitROIQuery = roiInfo => {
     const { dataSet, superROIs, submit } = this.props;
-    const { bodyId } = this.state;
+    const { bodyId, status, algorithm } = this.state;
 
     const superROIsSet = new Set(superROIs);
 
@@ -346,6 +457,10 @@ export class FindSimilarNeurons extends React.Component {
 
     let ROIwhere = '';
 
+    if (status && status.length > 0) {
+      ROIwhere = `WHERE n.status IN [${status.map(statusX => `"${statusX}"`).join(", ")}]`;
+    }
+
     const bigroiArr = Array.from(bigrois);
     for (let i = 0; i < bigroiArr.length; i+=1) {
       const roi = bigroiArr[i];
@@ -356,13 +471,17 @@ export class FindSimilarNeurons extends React.Component {
       }
 
       if (key2roi[roi].length === 2) {
-        ROIwhere += '(n.`' + key2roi[roi][0] + '` OR n.`' + key2roi[roi][1] + '`)';
+        ROIwhere += `(n.\`${key2roi[roi][0]}\` OR n.\`${key2roi[roi][1]}\`)`;
       } else if (key2roi[roi].length === 1) {
-        ROIwhere += 'n.`' + key2roi[roi][0] + '`';
+        ROIwhere += `n.\`${key2roi[roi][0]}\``;
       }
     }
 
-    const cypher = `MATCH (n :Neuron {status:"Traced"}) ${ROIwhere} RETURN n.bodyId, n.instance, n.type, n.cropped, n.pre, n.post, apoc.convert.fromJsonMap(n.roiInfo), n.notes`;
+    let cypher = `MATCH (n :Neuron) ${ROIwhere} RETURN n.bodyId, n.instance, n.type, n.cropped, n.pre, n.post, apoc.convert.fromJsonMap(n.roiInfo), n.notes`;
+
+    if (algorithm === 'nblast') {
+      cypher = `MATCH(n :hemibrain_Neuron)-[x :NblastMatchTo]->(m :hemibrain_Neuron) WHERE x.score > 0.1 AND n.bodyId=${bodyId} RETURN m.bodyId, m.instance, m.type, x.score, apoc.convert.fromJsonMap(m.roiInfo), m.notes, m.pre, m.post ORDER By x.score DESC`
+    }
 
     const query = {
       dataSet,
@@ -373,7 +492,8 @@ export class FindSimilarNeurons extends React.Component {
         dataset: dataSet,
         superROIs,
         bodyId,
-        roiMapBase: roiMap
+        roiMapBase: roiMap,
+        algorithm
       },
       visProps: {
         rowsPerPage: 25
@@ -383,7 +503,7 @@ export class FindSimilarNeurons extends React.Component {
     submit(query);
   };
 
-  // processing intital request
+  // processing initial request
   processIDRequest = () => {
     const { dataSet } = this.props;
     const { bodyId } = this.state;
@@ -425,6 +545,10 @@ export class FindSimilarNeurons extends React.Component {
     this.setState({ bodyId: event.target.value });
   };
 
+  handleAlgorithmChange = event => {
+    this.setState({algorithm: event.target.value});
+  };
+
   catchReturn = event => {
     // submit request if user presses enter
     if (event.keyCode === 13) {
@@ -433,9 +557,36 @@ export class FindSimilarNeurons extends React.Component {
     }
   };
 
+  updateNBlastStatus() {
+    const { dataSet } = this.props;
+    fetch('/api/custom/custom?np_explorer=find_similar_neurons', {
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        dataset: dataSet,
+        cypher: 'MATCH (n:Meta) RETURN n.nBlastMatches'
+      }),
+      method: 'POST',
+      credentials: 'include'
+    }).then(result => {
+      if (result.ok) {
+        return result.json();
+      }
+      throw new Error(
+        'Unable to fetch configuration, try reloading the page. If this error persists, please contact support.'
+      );
+    }).then(resp => {
+      if (resp.data[0][0]) {
+        this.setState({ nBlastMatches: true });
+      }
+    });
+  }
+
+
   render() {
-    const { classes, isQuerying } = this.props;
-    const { bodyId, errorMessage } = this.state;
+    const { classes, isQuerying, dataSet, actions, neoServerSettings } = this.props;
+    const { bodyId, errorMessage, algorithm, nBlastMatches } = this.state;
 
     return (
       <div>
@@ -452,6 +603,29 @@ export class FindSimilarNeurons extends React.Component {
             onKeyDown={this.catchReturn}
           />
         </FormControl>
+        {nBlastMatches ? (
+          <>
+          <FormLabel component="legend">Search Algorithm</FormLabel>
+        <RadioGroup
+          aria-label="Type Of Algorithm"
+          name="type"
+          value={algorithm}
+          className={classes.radioGroup}
+          onChange={this.handleAlgorithmChange}
+        >
+          <FormControlLabel value="nblast" control={<Radio color="primary" />} label="NBLAST" />
+          <FormControlLabel value="synapse" control={<Radio color="primary" />} label="Synapse Distribution" />
+        </RadioGroup>
+          </>
+        ): ""}
+        {algorithm === 'synapse' ? (
+        <NeuronStatusFilter
+          callback={this.loadNeuronFilters}
+          datasetstr={dataSet}
+          actions={actions}
+          neoServer={neoServerSettings.get('neoServer')}
+        />) : ""}
+
         <Button
           variant="contained"
           color="primary"
@@ -473,9 +647,11 @@ export class FindSimilarNeurons extends React.Component {
 
 FindSimilarNeurons.propTypes = {
   submit: PropTypes.func.isRequired,
+  actions: PropTypes.object.isRequired,
   superROIs: PropTypes.arrayOf(PropTypes.string).isRequired,
   dataSet: PropTypes.string.isRequired,
   classes: PropTypes.object.isRequired,
+  neoServerSettings: PropTypes.object.isRequired,
   isQuerying: PropTypes.bool.isRequired
 };
 

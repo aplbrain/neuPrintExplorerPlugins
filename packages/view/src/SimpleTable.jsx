@@ -48,9 +48,9 @@ class SimpleTable extends React.Component {
   handleChangePage = (event, page) => {
     const { query, actions, index } = this.props;
     const { visProps = {} } = query;
-    const newVisProps = Object.assign({}, visProps, { page });
+    const newVisProps = {...visProps, page };
 
-    const updated = Object.assign({}, query, { visProps: newVisProps });
+    const updated = {...query, visProps: newVisProps };
     // TODO: we need to pass in the results data as a separate object from the
     // query. If we don't delete it here the URL explodes when we try to set it
     delete updated.result;
@@ -61,9 +61,9 @@ class SimpleTable extends React.Component {
   handleChangeRowsPerPage = event => {
     const { query, actions, index } = this.props;
     const { visProps = {} } = query;
-    const newVisProps = Object.assign({}, visProps, { rowsPerPage: event.target.value });
+    const newVisProps = {...visProps, rowsPerPage: event.target.value };
 
-    const updated = Object.assign({}, query, { visProps: newVisProps });
+    const updated = {...query, visProps: newVisProps };
     // TODO: we need to pass in the results data as a separate object from the
     // query. If we don't delete it here the URL explodes when we try to set it
     delete updated.result;
@@ -83,9 +83,9 @@ class SimpleTable extends React.Component {
     const newOrderBy = property;
     const newOrder = orderBy === property && order === 'desc' ? 'asc' : 'desc';
 
-    const newVisProps = Object.assign({}, visProps, { order: newOrder, orderBy: newOrderBy });
+    const newVisProps = {...visProps, order: newOrder, orderBy: newOrderBy };
 
-    const updated = Object.assign({}, query, { visProps: newVisProps });
+    const updated = {...query, visProps: newVisProps };
     // TODO: we need to pass in the results data as a separate object from the
     // query. If we don't delete it here the URL explodes when we try to set it
     delete updated.result;
@@ -103,6 +103,10 @@ class SimpleTable extends React.Component {
     const { visProps = {}, result } = query;
     const { rowsPerPage = 5 } = visProps;
     const { paginate = true, page = 0, orderBy = '', order = 'asc' } = visProps;
+
+    if (!result?.data) {
+      return (<p>result.data was not passed to the SimpleTable component</p>);
+    }
 
     const emptyRows = rowsPerPage - Math.min(rowsPerPage, result.data.length - page * rowsPerPage);
 
@@ -147,8 +151,8 @@ class SimpleTable extends React.Component {
               count={result.data.length}
               rowsPerPage={rowsPerPage}
               page={page}
-              onChangePage={this.handleChangePage}
-              onChangeRowsPerPage={this.handleChangeRowsPerPage}
+              onPageChange={this.handleChangePage}
+              onRowsPerPageChange={this.handleChangeRowsPerPage}
               rowsPerPageOptions={[5, 10, 25, 50, 100]}
               ActionsComponent={TablePaginationActions}
             />

@@ -97,6 +97,20 @@ export class CustomQuery extends React.Component {
     };
   }
 
+  componentDidUpdate(prevProps) {
+    // if there is some cypher from an existing result, then we
+    // can pre-populate the query box with that cypher.
+    const { cypherFromOpenTab } = this.props;
+    const { textValue } = this.state;
+    // if there is no cypher in the query box,
+    // then we are free to replace it.
+    if (textValue === '') {
+      if (prevProps.cypherFromOpenTab !== cypherFromOpenTab) {
+        this.setState({ textValue: cypherFromOpenTab});
+      }
+    }
+  }
+
   processRequest = () => {
     const { dataSet, submit } = this.props;
     const { textValue = '' } = this.state;
@@ -119,8 +133,8 @@ export class CustomQuery extends React.Component {
     const { textValue = '' } = this.state;
 
     // make sure user is not running an explain query already
-    let cypher = textValue.trim();
-    let items = cypher.split(/\s+/);
+    const cypher = textValue.trim();
+    const items = cypher.split(/\s+/);
     if (items.length > 0) {
       if (items[0].toLowerCase() === 'profile' || items[0].toLowerCase() === 'explain') {
         this.processRequest();
@@ -129,7 +143,7 @@ export class CustomQuery extends React.Component {
     }
 
     const parameters = {
-      cypher: 'EXPLAIN ' + textValue,
+      cypher: `EXPLAIN ${textValue}`,
       dataset: dataSet
     };
 
@@ -150,17 +164,17 @@ export class CustomQuery extends React.Component {
         if (resp.error) {
           // remove "EXPLAIN" for debugging
           let message = resp.error.replace('EXPLAIN ', '');
-          let colstr = message.match(/column \d+/g);
-          let col_arr = colstr[0].split(' ');
+          const colstr = message.match(/column \d+/g);
+          const colArr = colstr[0].split(' ');
           message = message.replace(
             colstr,
-            col_arr[0] + ' ' + (parseInt(col_arr[1]) - 8).toString()
+            colArr[0] + ' ' + (parseInt(colArr[1], 10) - 8).toString()
           );
-          let offstr = message.match(/offset: \d+/g);
-          let off_arr = offstr[0].split(' ');
+          const offstr = message.match(/offset: \d+/g);
+          const offArr = offstr[0].split(' ');
           message = message.replace(
             offstr,
-            off_arr[0] + ' ' + (parseInt(off_arr[1]) - 8).toString()
+            offArr[0] + ' ' + (parseInt(offArr[1], 10) - 8).toString()
           );
 
           this.setState({ errorMessage: message });
@@ -169,7 +183,7 @@ export class CustomQuery extends React.Component {
           this.processRequest();
         }
       })
-      .catch(error => {
+      .catch(() => {
         this.setState({ errorMessage: 'some error occurred.' });
       });
   };
@@ -229,7 +243,8 @@ CustomQuery.propTypes = {
   classes: PropTypes.object.isRequired,
   dataSet: PropTypes.string.isRequired,
   submit: PropTypes.func.isRequired,
-  isQuerying: PropTypes.bool.isRequired
+  isQuerying: PropTypes.bool.isRequired,
+  cypherFromOpenTab: PropTypes.string.isRequired
 };
 
 export default withStyles(styles)(CustomQuery);

@@ -53,17 +53,17 @@ class CollapsibleTable extends React.Component {
   handleChangePage = (event, page) => {
     const { query, actions, index } = this.props;
     const { visProps } = query;
-    const newVisProps = Object.assign({}, visProps, { page });
+    const newVisProps = { ...visProps,  page };
 
-    actions.updateQuery(index, Object.assign({}, query, { visProps: newVisProps }));
+    actions.updateQuery(index, {...query, visProps: newVisProps});
   };
 
   handleChangeRowsPerPage = event => {
     const { query, actions, index } = this.props;
     const { visProps } = query;
-    const newVisProps = Object.assign({}, visProps, { rowsPerPage: event.target.value });
+    const newVisProps = {...visProps, rowsPerPage: event.target.value };
 
-    actions.updateQuery(index, Object.assign({}, query, { visProps: newVisProps }));
+    actions.updateQuery(index, {...query, visProps: newVisProps });
   };
 
   handleCellClick = action => () => {
@@ -176,8 +176,8 @@ class CollapsibleTable extends React.Component {
             count={query.result.data.length}
             rowsPerPage={rowsPerPage}
             page={page}
-            onChangePage={this.handleChangePage}
-            onChangeRowsPerPage={this.handleChangeRowsPerPage}
+            onPageChange={this.handleChangePage}
+            onRowsPerPageChange={this.handleChangeRowsPerPage}
             rowsPerPageOptions={[5, 10, 25, 50, 100]}
             ActionsComponent={TablePaginationActions}
           />

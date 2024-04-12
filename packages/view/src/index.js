@@ -7,7 +7,10 @@ const pluginList = [
   'PartnerCompletenessView',
   'SimpleTable',
   'CellTypeView',
+  'ObjectsView',
+  'FindObjectsView',
   'Graph',
+  'MotifView',
 ];
 
 pluginList.forEach(pluginName => {

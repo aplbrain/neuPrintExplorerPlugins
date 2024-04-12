@@ -8,13 +8,12 @@ import merge from 'deepmerge';
 import { withStyles } from '@material-ui/core/styles';
 import FormControl from '@material-ui/core/FormControl';
 import FormLabel from '@material-ui/core/FormLabel';
-import ExpansionPanel from '@material-ui/core/ExpansionPanel';
-import ExpansionPanelSummary from '@material-ui/core/ExpansionPanelSummary';
-import ExpansionPanelDetails from '@material-ui/core/ExpansionPanelDetails';
+import Accordion from '@material-ui/core/Accordion';
+import AccordionSummary from '@material-ui/core/AccordionSummary';
+import AccordionDetails from '@material-ui/core/AccordionDetails';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import Typography from '@material-ui/core/Typography';
 import Select from 'react-select';
-import Tooltip from '@material-ui/core/Tooltip';
 import TextField from '@material-ui/core/TextField';
 
 const styles = theme => ({
@@ -52,10 +51,9 @@ class NeuronFilter extends React.Component {
     super(props);
 
     const initParams = {
-      limitNeurons: true,
-      statusFilters: [],
-      preThreshold: '',
-      postThreshold: ''
+      status: [],
+      pre: '',
+      post: ''
     };
 
     const qsParams = props.actions.getQueryObject().NFilter || {};
@@ -71,18 +69,16 @@ class NeuronFilter extends React.Component {
     }
 
     this.queryStatuses(props.neoServer, props.datasetstr);
-    this.queryStatusDefinitions(props.neoServer, props.datasetstr);
   }
 
   componentWillReceiveProps(nextProps) {
     const { neoServer, datasetstr, actions } = this.props;
     if (nextProps.neoServer !== neoServer || nextProps.datasetstr !== datasetstr) {
       this.queryStatuses(nextProps.neoServer, nextProps.datasetstr);
-      this.queryStatusDefinitions(nextProps.neoServer, nextProps.datasetstr);
       const { qsParams } = this.state;
-      const statusFilters = [];
-      const newParams = Object.assign({}, qsParams, { statusFilters });
-      actions.setQueryString({ NFilter: { statusFilters } });
+      const status = [];
+      const newParams = {...qsParams, status};
+      actions.setQueryString({ NFilter: { status } });
       this.setState({ qsParams: newParams });
     }
   }
@@ -119,101 +115,48 @@ class NeuronFilter extends React.Component {
       });
   };
 
-  queryStatusDefinitions = (neoServer, dataset) => {
-    const { actions } = this.props;
-    if (neoServer === '' || dataset === '') {
-      return;
-    }
-
-    fetch('/api/custom/custom?np_explorer=neuron_filter_status', {
-      headers: {
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        dataset,
-        cypher: `MATCH (n:Meta) RETURN n.statusDefinitions`
-      }),
-      method: 'POST',
-      credentials: 'include'
-    })
-      .then(result => {
-        if (result.ok) {
-          return result.json();
-        }
-        throw new Error(
-          'Unable to fetch status definitions, try reloading the page. If this error persists, please contact support.'
-        );
-      })
-      .then(resp => {
-        let statusDefinitions = '';
-        if (resp.data[0][0]) {
-          const statusDefinitionsObject = JSON.parse(resp.data[0][0].replace(/'/g, '"'));
-          Object.keys(statusDefinitionsObject).forEach((status, index) => {
-            statusDefinitions += `${status}: ${statusDefinitionsObject[status]}`;
-            if (index < Object.keys(statusDefinitionsObject).length - 1) {
-              statusDefinitions += ', ';
-            }
-          });
-        }
-        this.setState({ statusDefinitions });
-      })
-      .catch(error => {
-        actions.metaInfoError(error);
-      });
-  };
-
-  handleStatus = selected => {
+  handleChange = (selected, paramType) => {
     const { qsParams } = this.state;
     const { callback, actions } = this.props;
-    const statusFilters = selected.map(item => item.value);
-    const newParams = Object.assign({}, qsParams, { statusFilters });
+    const values = selected ? selected.map(item => item.value) : [];
+    const newParams = {...qsParams, ...{ [paramType]: values }};
     // save back status selections
     callback(newParams);
-    actions.setQueryString({ NFilter: { statusFilters } });
+    actions.setQueryString({ NFilter: { [paramType]: values } });
     this.setState({ qsParams: newParams });
   };
 
-  handlePreChange = event => {
+  handleTextChange = (event, paramType) => {
     const { qsParams } = this.state;
     const { callback, actions } = this.props;
-    const preThreshold = event.target.value;
-    const newParams = Object.assign({}, qsParams, { preThreshold });
+    const {value} = event.target;
+    const newParams = {...qsParams, ...{ [paramType]: value }};
     callback(newParams);
-    actions.setQueryString({ NFilter: { preThreshold } });
-    this.setState({ qsParams: newParams });
-  };
-
-  handlePostChange = event => {
-    const { qsParams } = this.state;
-    const { callback, actions } = this.props;
-    const postThreshold = event.target.value;
-    const newParams = Object.assign({}, qsParams, { postThreshold });
-    callback(newParams);
-    actions.setQueryString({ NFilter: { postThreshold } });
+    actions.setQueryString({ NFilter: { [paramType]: value } });
     this.setState({ qsParams: newParams });
   };
 
   render() {
     const { classes } = this.props;
-    const { qsParams, statuses, statusDefinitions } = this.state;
+    const { qsParams, statuses } = this.state;
 
     const statusOptions = statuses.map(name => ({
       label: name,
       value: name
     }));
 
-    const statusValue = qsParams.statusFilters.map(roi => ({
+    const statusValue = qsParams.status.map(roi => ({
       label: roi,
       value: roi
     }));
 
     return (
       <div className={classes.expandablePanel}>
-        <ExpansionPanel>
-          <ExpansionPanelSummary expandIcon={<ExpandMoreIcon />}>
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1">Optional neuron/segment filters</Typography>
-          </ExpansionPanelSummary>
-          <ExpansionPanelDetails className={classes.nopad}>
+          </AccordionSummary>
+          <AccordionDetails className={classes.nopad}>
             <FormControl className={classes.formControl}>
               <TextField
                 label="minimum # pre (optional)"
@@ -221,10 +164,10 @@ class NeuronFilter extends React.Component {
                 variant="outlined"
                 margin="dense"
                 rows={1}
-                value={qsParams.preThreshold}
+                value={qsParams.pre}
                 rowsMax={1}
                 className={classes.textField}
-                onChange={this.handlePreChange}
+                onChange={(event) => this.handleTextChange(event, 'pre')}
               />
               <TextField
                 label="minimum # post (optional)"
@@ -232,30 +175,27 @@ class NeuronFilter extends React.Component {
                 margin="dense"
                 type="number"
                 rows={1}
-                value={qsParams.postThreshold}
+                value={qsParams.post}
                 rowsMax={1}
                 className={classes.textField}
-                onChange={this.handlePostChange}
+                onChange={(event) => this.handleTextChange(event, 'post')}
               />
               <FormControl className={classes.formControl}>
                 <FormLabel style={{ display: 'inline-flex' }}>
                   Filter by status
-                  <Tooltip id="tooltip-icon" title={statusDefinitions || ''} placement="right">
-                    <div className={classes.tooltip}>?</div>
-                  </Tooltip>
                 </FormLabel>
                 <Select
                   className={classes.select}
                   isMulti
                   value={statusValue}
-                  onChange={this.handleStatus}
+                  onChange={(event) => this.handleChange(event, 'status')}
                   options={statusOptions}
                   closeMenuOnSelect={false}
                 />
               </FormControl>
             </FormControl>
-          </ExpansionPanelDetails>
-        </ExpansionPanel>
+          </AccordionDetails>
+        </Accordion>
       </div>
     );
   }

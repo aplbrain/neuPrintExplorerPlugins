@@ -15,9 +15,9 @@ function processRaw(bodyId, rawData, superROIs) {
   };
 
   rawData.forEach(row => {
-    const [, type = 'none', , roisJSON, status, direction] = row;
+    const [targetId, type = 'none', , roisJSON, status, direction] = row;
     // check that the status is traced
-    if (/(traced|leave)/i.test(status)) {
+    if (/(traced|anchor|leave)/i.test(status)) {
       // check if this is an input or an output
       const dirPosition = direction === 'upstream' ? 0 : 1;
       const topLevel = data.children[dirPosition];
@@ -46,8 +46,16 @@ function processRaw(bodyId, rawData, superROIs) {
             roiLevel.children.push(typeObject);
             typeLevel = typeObject;
           }
-
-          typeLevel.value += roiData.post;
+          // As the code loops over the rawData it adds the roiData.post value to the
+          // total value for each ROI. In some cases that value was undefined, which
+          // lead to the total value becoming NaN. This resulted in the removal of
+          // the neuron type from the sunburst result. Now it logs a warning, but
+          // keeps the total value for the ones that do have real numbers.
+          if (roiData.post) {
+            typeLevel.value += roiData.post;
+          } else {
+            console.log(`roiData.post missing for bodyid ${targetId}`);
+          }
         });
     }
   });
@@ -60,7 +68,7 @@ export default function SunburstFormatter(props) {
   const data = processRaw(bodyId, rawData, superROIs);
 
   return (
-    <div style={{ 'text-align': 'center' , 'width': '100%', 'height': '100%'}}>
+    <div style={{ 'textAlign': 'center' , 'width': '100%', 'height': '100%'}}>
       <Sunburst data={data} colors={colors} preserveTopLevelOrder />
       <p>Connections are filtered to only those between traced neurons</p>
     </div>
